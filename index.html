@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Mitushi Fashion</title>
+<meta name="theme-color" content="#C2185B">
+<link rel="manifest" href="/Mitushi-Kurtis-Photos/manifest.json">
+<link rel="apple-touch-icon" href="/Mitushi-Kurtis-Photos/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mitushi Fashion">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  :root{
+    --rose:#C2185B; --rose-dark:#8E0E40; --rose-soft:#FCE4EC;
+    --ink:#2B2024; --muted:#8A7E84; --bg:#FBF7F8; --card:#FFFFFF;
+    --border:#F0E3E8; --success:#1B873F; --danger:#C62828;
+  }
+  html,body{ background:var(--bg); color:var(--ink); font-family:'Poppins',system-ui,sans-serif; }
+  body{ min-height:100vh; min-height:100dvh; }
+  .topbar{
+    position:sticky; top:0; z-index:10; background:var(--rose); color:#fff;
+    display:flex; align-items:center; gap:11px;
+    padding:14px 18px; padding-top:calc(14px + env(safe-area-inset-top));
+  }
+  .topbar .ttl{ font-weight:600; font-size:18px; line-height:1.1; }
+  .topbar .sub{ font-size:11px; opacity:.85; font-weight:300; margin-top:1px; }
+  .wrap{ max-width:520px; margin:0 auto; padding:16px 16px 48px; }
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:16px;
+    padding:18px; box-shadow:0 2px 10px rgba(140,20,60,.05); margin-bottom:14px;
+  }
+  .hidden{ display:none !important; }
+
+  .banner{ border-radius:14px; padding:14px 16px; margin-bottom:14px; font-size:13.5px; line-height:1.5; }
+  .banner.warn{ background:#FFF4E5; border:1px solid #FFD699; color:#7A4B00; }
+  .banner.warn b{ color:#5A3700; }
+
+  .hero{ text-align:center; padding:6px 0 2px; }
+  .hero .big{ font-size:40px; font-weight:700; color:var(--rose); line-height:1; }
+  .hero .cap{ font-size:13px; color:var(--muted); margin-top:4px; }
+
+  .thumbs{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:14px; }
+  .thumbs .t{ position:relative; aspect-ratio:1; border-radius:9px; overflow:hidden; background:var(--rose-soft); }
+  .thumbs .t img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .thumbs .more{
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    aspect-ratio:1; border-radius:9px; background:var(--rose-soft); color:var(--rose-dark);
+    font-size:12px; font-weight:600; padding:4px;
+  }
+
+  .lbl{ font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.3px; text-transform:uppercase; margin-bottom:9px; }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+  .chip{
+    border:1.5px solid var(--border); background:#fff; color:var(--ink);
+    border-radius:30px; padding:8px 15px; font-size:13.5px; font-weight:500;
+    cursor:pointer; font-family:inherit; transition:.12s;
+  }
+  .chip.active{ background:var(--rose); border-color:var(--rose); color:#fff; }
+
+  .addcat{ display:flex; gap:8px; }
+  .addcat input{
+    flex:1; min-width:0; border:1.5px solid var(--border); border-radius:11px;
+    padding:11px 13px; font-size:14px; font-family:inherit; color:var(--ink); background:#fff;
+  }
+  .addcat input:focus{ outline:none; border-color:var(--rose); }
+  .addcat button{
+    border:none; background:var(--rose-soft); color:var(--rose-dark);
+    border-radius:11px; padding:0 16px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit;
+  }
+
+  .daterow{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+  .daterow label{ font-size:13px; color:var(--muted); font-weight:500; }
+  .daterow input{
+    border:1.5px solid var(--border); border-radius:11px; padding:9px 12px;
+    font-size:14px; font-family:inherit; color:var(--ink); background:#fff;
+  }
+  .daterow input:focus{ outline:none; border-color:var(--rose); }
+
+  .btn{
+    display:block; width:100%; border:none; border-radius:13px;
+    padding:16px; font-size:15.5px; font-weight:600; cursor:pointer; font-family:inherit;
+    transition:.12s; text-align:center;
+  }
+  .btn-primary{ background:var(--rose); color:#fff; box-shadow:0 4px 14px rgba(194,24,91,.28); }
+  .btn-primary:disabled{ background:#E8C2D1; box-shadow:none; cursor:not-allowed; }
+  .btn-ghost{ background:#fff; color:var(--rose); border:1.5px solid var(--border); box-shadow:none; }
+  .btn .uploadto{ display:block; font-size:11.5px; font-weight:400; opacity:.9; margin-top:3px; }
+  .btn-row{ margin-top:6px; }
+
+  .intro h2{ font-size:17px; font-weight:600; margin-bottom:6px; }
+  .intro p{ font-size:13.5px; color:var(--muted); line-height:1.6; margin-bottom:14px; }
+  .steps{ list-style:none; margin:0 0 16px; padding:0; }
+  .steps li{ display:flex; gap:10px; align-items:flex-start; font-size:13.5px; line-height:1.5; margin-bottom:10px; }
+  .steps .n{ flex-shrink:0; width:22px; height:22px; border-radius:50%; background:var(--rose-soft); color:var(--rose-dark); font-size:12px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+
+  .progwrap{ text-align:center; padding:10px 0; }
+  .progwrap .pct{ font-size:34px; font-weight:700; color:var(--rose); line-height:1; }
+  .progwrap .stat{ font-size:13.5px; color:var(--muted); margin-top:6px; }
+  .bar{ height:10px; background:var(--rose-soft); border-radius:6px; overflow:hidden; margin-top:16px; }
+  .bar > i{ display:block; height:100%; width:0%; background:var(--rose); border-radius:6px; transition:width .25s; }
+
+  .result-ico{ width:58px; height:58px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:2px auto 12px; font-size:30px; }
+  .result-ico.ok{ background:#E6F4EA; color:var(--success); }
+  .result-ico.part{ background:#FFF4E5; color:#B26A00; }
+  .result h2{ text-align:center; font-size:19px; font-weight:600; margin-bottom:6px; }
+  .result p{ text-align:center; font-size:13.5px; color:var(--muted); line-height:1.6; margin-bottom:16px; }
+  .result a.folder{ color:var(--rose); font-weight:600; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <svg width="26" height="26" viewBox="0 0 64 64" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M32 27 L11 41 L53 41 Z"/>
+    <path d="M32 27 L32 19"/>
+    <circle cx="35.5" cy="16.5" r="3.5"/>
+  </svg>
+  <div>
+    <div class="ttl">Mitushi Fashion</div>
+    <div class="sub">Stock Photo Manager</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div id="cfgWarn" class="banner warn hidden">
+    <b>One-time setup left.</b> Open this file and paste your Apps Script <b>web app URL</b> and <b>API key</b> at the top (in the BACKEND_URL and API_KEY lines), then re-upload. Until then, uploads won't work.
+  </div>
+
+  <!-- HOME (opened directly, no shared photos) -->
+  <section id="homeView" class="card intro">
+    <h2>Add your stock photos</h2>
+    <p>Save kurti photos to Google Drive, sorted by date and category. Nothing stays on your phone.</p>
+    <ul class="steps">
+      <li><span class="n">1</span><span>In WhatsApp, select the photos and tap <b>Share</b>.</span></li>
+      <li><span class="n">2</span><span>Choose <b>Mitushi Fashion</b> from the share menu.</span></li>
+      <li><span class="n">3</span><span>Pick a category and tap upload — done.</span></li>
+    </ul>
+    <button class="btn btn-ghost" id="pickHome">Add from gallery</button>
+  </section>
+
+  <!-- INTAKE (photos loaded) -->
+  <section id="intakeView" class="hidden">
+    <div class="card">
+      <div class="hero">
+        <div class="big" id="photoCount">0</div>
+        <div class="cap" id="photoCap">photos ready to upload</div>
+      </div>
+      <div class="thumbs" id="thumbs"></div>
+      <button class="btn btn-ghost btn-row" id="pickMore" style="margin-top:14px;">Add more from gallery</button>
+    </div>
+
+    <div class="card">
+      <div class="lbl">Category</div>
+      <div class="chips" id="chips"></div>
+      <div class="addcat">
+        <input id="catInput" type="text" placeholder="New category…" autocomplete="off">
+        <button id="catAdd">Add</button>
+      </div>
+      <div class="daterow">
+        <label for="dateInput">Photos from</label>
+        <input id="dateInput" type="date">
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="uploadBtn" disabled>
+      Upload to Drive
+      <span class="uploadto" id="uploadTo"></span>
+    </button>
+  </section>
+
+  <!-- PROGRESS -->
+  <section id="progressView" class="hidden">
+    <div class="card progwrap">
+      <div class="pct" id="pct">0%</div>
+      <div class="stat" id="progStat">Starting…</div>
+      <div class="bar"><i id="barFill"></i></div>
+    </div>
+  </section>
+
+  <!-- RESULT -->
+  <section id="resultView" class="hidden">
+    <div class="card result">
+      <div class="result-ico ok" id="resIco">✓</div>
+      <h2 id="resTitle">All uploaded</h2>
+      <p id="resMsg"></p>
+      <button class="btn btn-primary" id="moreBtn">Upload more photos</button>
+    </div>
+  </section>
+
+</div>
+
+<input id="fileInput" type="file" accept="image/*" multiple hidden>
+
+<script>
+/* ============================================================
+   CONFIG — fill these two lines with your own values, then re-upload.
+   BACKEND_URL = the Apps Script web app URL ending in /exec
+   API_KEY     = the same secret you set in Code.gs
+   ============================================================ */
+const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyeDm3jErVNjGVN9cxvogtFjgU5UMrwt9ISBWXMJMAnC_YJlzHLQ03_qz4EvLBTDjgfIQ/exec";
+const API_KEY     = "mitushi-7752-xyz";
+
+const BASE = "/Mitushi-Kurtis-Photos/";
+const SHARE_CACHE = "mf-shared-photos";
+const BATCH_SIZE = 15;
+const MAX_THUMBS = 24;
+const DEFAULT_CATS = ["New Stock", "Cotton Kurtis", "Party Wear", "Anarkali", "Designer"];
+
+let currentFiles = [];      // File[]
+let selectedCategory = "";
+let objectUrls = [];        // for cleanup
+
+/* ---------- helpers ---------- */
+const $ = (id) => document.getElementById(id);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function todayIST() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(new Date());
+}
+
+function fileToBase64(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(",")[1]);
+    r.onerror = () => rej(new Error("read failed"));
+    r.readAsDataURL(file);
+  });
+}
+
+function getCats() {
+  try {
+    const raw = localStorage.getItem("mf_cats");
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return DEFAULT_CATS.slice();
+}
+function saveCatUsed(cat) {
+  let cats = getCats().filter((c) => c.toLowerCase() !== cat.toLowerCase());
+  cats.unshift(cat);
+  cats = cats.slice(0, 12);
+  try { localStorage.setItem("mf_cats", JSON.stringify(cats)); } catch (e) {}
+}
+
+/* ---------- views ---------- */
+function show(view) {
+  ["homeView", "intakeView", "progressView", "resultView"].forEach((v) => {
+    $(v).classList.toggle("hidden", v !== view);
+  });
+}
+
+function renderChips() {
+  const chips = $("chips");
+  chips.innerHTML = "";
+  getCats().forEach((cat) => {
+    const b = document.createElement("button");
+    b.className = "chip" + (cat === selectedCategory ? " active" : "");
+    b.textContent = cat;
+    b.onclick = () => { selectedCategory = cat; renderChips(); refreshUploadBtn(); };
+    chips.appendChild(b);
+  });
+}
+
+function clearObjectUrls() {
+  objectUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (e) {} });
+  objectUrls = [];
+}
+
+function renderIntake() {
+  const n = currentFiles.length;
+  $("photoCount").textContent = n;
+  $("photoCap").textContent = (n === 1 ? "photo" : "photos") + " ready to upload";
+
+  clearObjectUrls();
+  const grid = $("thumbs");
+  grid.innerHTML = "";
+  const showCount = Math.min(n, MAX_THUMBS);
+  for (let i = 0; i < showCount; i++) {
+    const url = URL.createObjectURL(currentFiles[i]);
+    objectUrls.push(url);
+    const t = document.createElement("div");
+    t.className = "t";
+    t.innerHTML = '<img src="' + url + '" alt="">';
+    grid.appendChild(t);
+  }
+  if (n > MAX_THUMBS) {
+    const more = document.createElement("div");
+    more.className = "more";
+    more.textContent = "+" + (n - MAX_THUMBS) + " more";
+    grid.appendChild(more);
+  }
+  renderChips();
+  refreshUploadBtn();
+  show("intakeView");
+}
+
+function refreshUploadBtn() {
+  const ready = currentFiles.length > 0 && selectedCategory && !isPlaceholder();
+  $("uploadBtn").disabled = !ready;
+  $("uploadTo").textContent = (currentFiles.length && selectedCategory)
+    ? (selectedCategory + "  •  " + $("dateInput").value)
+    : (currentFiles.length ? "Pick a category first" : "");
+}
+
+function isPlaceholder() {
+  return BACKEND_URL.indexOf("PASTE_") === 0 || API_KEY.indexOf("PASTE_") === 0;
+}
+
+/* ---------- shared photos from WhatsApp ---------- */
+async function loadSharedPhotos() {
+  try {
+    const cache = await caches.open(SHARE_CACHE);
+    const metaResp = await cache.match(BASE + "__shared__/meta");
+    if (!metaResp) return false;
+    const meta = await metaResp.json();
+    const files = [];
+    for (let i = 0; i < meta.count; i++) {
+      const resp = await cache.match(BASE + "__shared__/" + i);
+      if (!resp) continue;
+      const blob = await resp.blob();
+      const name = (meta.names && meta.names[i]) || ("photo_" + i + ".jpg");
+      files.push(new File([blob], name, { type: blob.type || "image/jpeg" }));
+    }
+    if (!files.length) return false;
+    currentFiles = files;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+async function clearSharedCache() {
+  try {
+    const cache = await caches.open(SHARE_CACHE);
+    const keys = await cache.keys();
+    await Promise.all(keys.map((k) => cache.delete(k)));
+  } catch (e) {}
+}
+
+/* ---------- gallery picker ---------- */
+function openPicker() { $("fileInput").click(); }
+$("fileInput").addEventListener("change", (e) => {
+  const picked = Array.from(e.target.files || []);
+  if (!picked.length) return;
+  currentFiles = currentFiles.concat(picked);
+  e.target.value = "";
+  renderIntake();
+});
+
+/* ---------- upload ---------- */
+async function uploadBatch(batch, category, dateStr) {
+  const payload = { action: "upload", key: API_KEY, category: category, date: dateStr, files: [] };
+  for (const f of batch) {
+    payload.files.push({ name: f.name, mimeType: f.type || "image/jpeg", data: await fileToBase64(f) });
+  }
+  const resp = await fetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) });
+  return resp.json();
+}
+
+async function doUpload() {
+  if (isPlaceholder()) { $("cfgWarn").classList.remove("hidden"); return; }
+  const category = selectedCategory;
+  const dateStr = $("dateInput").value || todayIST();
+  const all = currentFiles.slice();
+  const total = all.length;
+  let done = 0, saved = 0, failed = 0;
+  let folderUrl = "";
+
+  show("progressView");
+  setProgress(0, total, 0);
+
+  for (let i = 0; i < total; i += BATCH_SIZE) {
+    const batch = all.slice(i, i + BATCH_SIZE);
+    let ok = false, res = null, attempt = 0;
+    while (attempt < 3 && !ok) {
+      try {
+        res = await uploadBatch(batch, category, dateStr);
+        ok = res && res.ok;
+      } catch (e) { res = { ok: false, error: String(e) }; }
+      if (!ok) { attempt++; await sleep(1500 * attempt); }
+    }
+    if (ok) {
+      saved += (typeof res.savedCount === "number" ? res.savedCount : batch.length);
+      if (res.folderUrl) folderUrl = res.folderUrl;
+    } else {
+      failed += batch.length;
+    }
+    done += batch.length;
+    setProgress(done, total, saved);
+  }
+
+  saveCatUsed(category);
+  await clearSharedCache();
+  showResult(saved, failed, total, category, dateStr, folderUrl);
+}
+
+function setProgress(done, total, saved) {
+  const pct = total ? Math.round((done / total) * 100) : 0;
+  $("pct").textContent = pct + "%";
+  $("barFill").style.width = pct + "%";
+  $("progStat").textContent = "Saved " + saved + " of " + total + " photos…";
+}
+
+function showResult(saved, failed, total, category, dateStr, folderUrl) {
+  const ico = $("resIco");
+  if (failed === 0) {
+    ico.className = "result-ico ok"; ico.textContent = "✓";
+    $("resTitle").textContent = "All uploaded";
+  } else {
+    ico.className = "result-ico part"; ico.textContent = "!";
+    $("resTitle").textContent = saved + " of " + total + " uploaded";
+  }
+  let msg = saved + " photo" + (saved === 1 ? "" : "s") + " saved to <b>" + escapeHtml(category) + "</b> (" + dateStr + ").";
+  if (failed > 0) msg += "<br>" + failed + " failed — tap Upload more to retry those.";
+  if (folderUrl) msg += '<br><a class="folder" href="' + folderUrl + '" target="_blank" rel="noopener">Open Drive folder</a>';
+  $("resMsg").innerHTML = msg;
+  show("resultView");
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function resetForMore() {
+  clearObjectUrls();
+  currentFiles = [];
+  selectedCategory = "";
+  show("homeView");
+}
+
+/* ---------- wire up ---------- */
+$("pickHome").onclick = openPicker;
+$("pickMore").onclick = openPicker;
+$("uploadBtn").onclick = doUpload;
+$("moreBtn").onclick = resetForMore;
+$("dateInput").onchange = refreshUploadBtn;
+$("catAdd").onclick = () => {
+  const v = $("catInput").value.trim();
+  if (!v) return;
+  selectedCategory = v;
+  saveCatUsed(v);
+  $("catInput").value = "";
+  renderChips();
+  refreshUploadBtn();
+};
+$("catInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("catAdd").click(); } });
+
+/* ---------- init ---------- */
+async function init() {
+  $("dateInput").value = todayIST();
+  if (isPlaceholder()) $("cfgWarn").classList.remove("hidden");
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register(BASE + "sw.js").catch(() => {});
+  }
+
+  const params = new URLSearchParams(location.search);
+  if (params.get("share") === "1") {
+    history.replaceState(null, "", BASE);
+    const got = await loadSharedPhotos();
+    if (got) { renderIntake(); return; }
+  }
+  show("homeView");
+}
+init();
+</script>
+</body>
+</html>

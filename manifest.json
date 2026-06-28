@@ -1,0 +1,30 @@
+{
+  "name": "Mitushi Fashion",
+  "short_name": "Mitushi Fashion",
+  "description": "Save and share kurti stock photos to Google Drive",
+  "id": "/Mitushi-Kurtis-Photos/",
+  "start_url": "/Mitushi-Kurtis-Photos/",
+  "scope": "/Mitushi-Kurtis-Photos/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF7F8",
+  "theme_color": "#C2185B",
+  "icons": [
+    { "src": "/Mitushi-Kurtis-Photos/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/Mitushi-Kurtis-Photos/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/Mitushi-Kurtis-Photos/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "share_target": {
+    "action": "/Mitushi-Kurtis-Photos/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        { "name": "photos", "accept": ["image/*"] }
+      ]
+    }
+  }
+}
