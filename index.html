@@ -27,6 +27,8 @@
   }
   .topbar .ttl{ font-weight:600; font-size:18px; line-height:1.1; }
   .topbar .sub{ font-size:11px; opacity:.85; font-weight:300; margin-top:1px; }
+  .homebtn{ margin-left:auto; width:38px; height:38px; border:1.5px solid rgba(255,255,255,.4); background:rgba(255,255,255,.12); border-radius:11px; display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0; }
+  .homebtn:active{ background:rgba(255,255,255,.25); }
   .wrap{ max-width:520px; margin:0 auto; padding:16px 16px 48px; }
   .card{
     background:var(--card); border:1px solid var(--border); border-radius:16px;
@@ -95,6 +97,7 @@
   .btn-ghost{ background:#fff; color:var(--rose); border:1.5px solid var(--border); box-shadow:none; }
   .btn .uploadto{ display:block; font-size:11.5px; font-weight:400; opacity:.9; margin-top:3px; }
   .btn-row{ margin-top:14px; }
+  .btn + .btn{ margin-top:10px; }
 
   .intro h2{ font-size:17px; font-weight:600; margin-bottom:6px; }
   .intro p{ font-size:13.5px; color:var(--muted); line-height:1.6; margin-bottom:14px; }
@@ -128,6 +131,11 @@
     <div class="ttl">Mitushi Fashion</div>
     <div class="sub">Stock Photo Manager</div>
   </div>
+  <button class="homebtn" id="homeBtn" title="Home" aria-label="Home">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9h14v-9"/>
+    </svg>
+  </button>
 </header>
 
 <div class="wrap">
@@ -139,7 +147,7 @@
   <!-- HOME -->
   <section id="homeView" class="card intro">
     <h2>Add your stock photos</h2>
-    <p>Save kurti photos to Google Drive, sorted by vendor and category. Nothing stays on your phone.</p>
+    <p>Save kurti photos to Google Drive, sorted by category and vendor. Nothing stays on your phone.</p>
     <ul class="steps">
       <li><span class="n">1</span><span>In WhatsApp, select the photos and tap <b>Share</b>.</span></li>
       <li><span class="n">2</span><span>Choose <b>Mitushi Fashion</b> from the share menu.</span></li>
@@ -204,6 +212,7 @@
       <h2 id="resTitle">All uploaded</h2>
       <p id="resMsg"></p>
       <button class="btn btn-primary" id="moreBtn">Upload more photos</button>
+      <button class="btn btn-ghost" id="homeBtn2">Home</button>
     </div>
   </section>
 
@@ -213,7 +222,7 @@
 
 <script>
 /* ============================================================
-   CONFIG — these are already filled with your values.
+   CONFIG — already filled with your values.
    ============================================================ */
 const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyeDm3jErVNjGVN9cxvogtFjgU5UMrwt9ISBWXMJMAnC_YJlzHLQ03_qz4EvLBTDjgfIQ/exec";
 const API_KEY     = "mitushi-7752-xyz";
@@ -230,6 +239,7 @@ let selectedCategory = "";
 let selectedVendor = "";
 let objectUrls = [];
 let thumbObserver = null;
+let isUploading = false;
 
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -371,7 +381,7 @@ function refreshUploadBtn() {
   if (currentFiles.length) {
     if (!selectedCategory) hint = "Pick a category";
     else if (!selectedVendor) hint = "Pick a vendor";
-    else hint = selectedVendor + "  •  " + selectedCategory + "  •  " + $("dateInput").value;
+    else hint = selectedCategory + "  •  " + selectedVendor + "  •  " + $("dateInput").value;
   }
   $("uploadTo").textContent = hint;
 }
@@ -428,6 +438,7 @@ async function uploadBatch(batch, vendor, category, dateStr) {
 }
 async function doUpload() {
   if (isPlaceholder()) { $("cfgWarn").classList.remove("hidden"); return; }
+  isUploading = true;
   const vendor = selectedVendor, category = selectedCategory;
   const dateStr = $("dateInput").value || todayIST();
   const all = currentFiles.slice();
@@ -463,10 +474,11 @@ function setProgress(done, total, saved) {
   $("progStat").textContent = "Saved " + saved + " of " + total + " photos…";
 }
 function showResult(saved, failed, total, vendor, category, dateStr, folderUrl) {
+  isUploading = false;
   const ico = $("resIco");
   if (failed === 0) { ico.className = "result-ico ok"; ico.textContent = "✓"; $("resTitle").textContent = "All uploaded"; }
   else { ico.className = "result-ico part"; ico.textContent = "!"; $("resTitle").textContent = saved + " of " + total + " uploaded"; }
-  let msg = saved + " photo" + (saved === 1 ? "" : "s") + " saved to <b>" + escapeHtml(vendor) + " / " + escapeHtml(category) + "</b> (" + dateStr + ").";
+  let msg = saved + " photo" + (saved === 1 ? "" : "s") + " saved to <b>" + escapeHtml(category) + " / " + escapeHtml(vendor) + "</b> (" + dateStr + ").";
   if (failed > 0) msg += "<br>" + failed + " failed — tap Upload more to retry those.";
   if (folderUrl) msg += '<br><a class="folder" href="' + folderUrl + '" target="_blank" rel="noopener">Open Drive folder</a>';
   $("resMsg").innerHTML = msg;
@@ -485,8 +497,17 @@ function resetForMore() {
   $("vendorCard").classList.add("hidden");
   show("homeView");
 }
+function goHome() {
+  if (isUploading) return;
+  if (!$("intakeView").classList.contains("hidden") && currentFiles.length > 0) {
+    if (!confirm("Discard the selected photos and go home?")) return;
+  }
+  resetForMore();
+}
 
 /* ---- wire up ---- */
+$("homeBtn").onclick = goHome;
+$("homeBtn2").onclick = goHome;
 $("pickHome").onclick = openPicker;
 $("pickMore").onclick = openPicker;
 $("uploadBtn").onclick = doUpload;
