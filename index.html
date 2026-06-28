@@ -117,6 +117,32 @@
   .result h2{ text-align:center; font-size:19px; font-weight:600; margin-bottom:6px; }
   .result p{ text-align:center; font-size:13.5px; color:var(--muted); line-height:1.6; margin-bottom:16px; }
   .result a.folder{ color:var(--rose); font-weight:600; text-decoration:none; }
+
+  /* ---- browse ---- */
+  .browsebar{ display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .backbtn{ width:38px; height:38px; border:1.5px solid var(--border); background:#fff; border-radius:11px; font-size:22px; line-height:1; color:var(--rose); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0 0 2px; }
+  .browsetitle{ font-size:16px; font-weight:600; color:var(--ink); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .listrow{ display:flex; align-items:center; gap:12px; background:#fff; border:1px solid var(--border); border-radius:13px; padding:14px 16px; margin-bottom:10px; cursor:pointer; box-shadow:0 1px 6px rgba(140,20,60,.04); }
+  .listrow .rico{ width:38px; height:38px; border-radius:10px; background:var(--rose-soft); color:var(--rose-dark); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .listrow .rtext{ flex:1; min-width:0; }
+  .listrow .rtitle{ font-size:14.5px; font-weight:600; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .listrow .rsub{ font-size:12px; color:var(--muted); margin-top:1px; }
+  .listrow .rchev{ color:var(--muted); font-size:20px; }
+  .browsetip{ font-size:12.5px; color:var(--muted); margin:-2px 0 14px; }
+  .empty{ text-align:center; color:var(--muted); font-size:14px; padding:34px 10px; }
+
+  .pgrid{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; padding-bottom:96px; }
+  .pcell{ position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; background:var(--rose-soft); cursor:pointer; }
+  .pcell img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .pcell .check{ position:absolute; top:5px; right:5px; width:24px; height:24px; border-radius:50%; background:rgba(255,255,255,.85); border:2px solid #fff; display:flex; align-items:center; justify-content:center; font-size:14px; color:transparent; }
+  .pcell.sel{ outline:3px solid var(--rose); outline-offset:-3px; }
+  .pcell.sel .check{ background:var(--rose); color:#fff; }
+
+  .actionbar{ position:fixed; left:50%; transform:translateX(-50%); bottom:0; z-index:20; width:100%; max-width:520px; background:#fff; border-top:1px solid var(--border); padding:12px 16px; padding-bottom:calc(12px + env(safe-area-inset-bottom)); display:flex; gap:10px; }
+  .actionbar .btn{ margin:0; }
+
+  .statusov{ position:fixed; inset:0; z-index:30; background:rgba(43,32,36,.45); display:flex; align-items:center; justify-content:center; }
+  .statusov .box{ background:#fff; border-radius:14px; padding:20px 26px; font-size:14px; font-weight:500; color:var(--ink); box-shadow:0 10px 30px rgba(0,0,0,.2); text-align:center; }
 </style>
 </head>
 <body>
@@ -147,12 +173,13 @@
   <!-- HOME -->
   <section id="homeView" class="card intro">
     <h2>Add your stock photos</h2>
-    <p>Save kurti photos to Google Drive, sorted by category and vendor. Nothing stays on your phone.</p>
+    <p>Save kurti photos to Google Drive, sorted by date, category and vendor. Nothing stays on your phone.</p>
     <ul class="steps">
       <li><span class="n">1</span><span>In WhatsApp, select the photos and tap <b>Share</b>.</span></li>
       <li><span class="n">2</span><span>Choose <b>Mitushi Fashion</b> from the share menu.</span></li>
       <li><span class="n">3</span><span>Pick a category, then a vendor, and tap upload.</span></li>
     </ul>
+    <button class="btn btn-primary" id="browseBtn">Browse &amp; Send saved photos</button>
     <button class="btn btn-ghost" id="pickHome">Add from gallery</button>
   </section>
 
@@ -216,6 +243,20 @@
     </div>
   </section>
 
+  <!-- BROWSE -->
+  <section id="browseView" class="hidden">
+    <div class="browsebar">
+      <button class="backbtn" id="browseBack" aria-label="Back">‹</button>
+      <div class="browsetitle" id="browseTitle">Browse photos</div>
+    </div>
+    <div id="browseBody"></div>
+  </section>
+
+</div>
+
+<div class="actionbar hidden" id="actionBar">
+  <button class="btn btn-ghost" id="delSel">Delete (0)</button>
+  <button class="btn btn-primary" id="shareSel">Share (0)</button>
 </div>
 
 <input id="fileInput" type="file" accept="image/*" multiple hidden>
@@ -241,6 +282,13 @@ let objectUrls = [];
 let thumbObserver = null;
 let isUploading = false;
 
+/* browse state */
+let browseLevel = "dates";
+let browseData = [];
+let browseDate = "", browseCategory = "", browseVendor = "";
+let browsePhotos = [];
+let selectedIds = new Set();
+
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -256,6 +304,10 @@ function fileToBase64(file) {
     r.onerror = () => rej(new Error("read failed"));
     r.readAsDataURL(file);
   });
+}
+async function apiPost(payload) {
+  const resp = await fetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) });
+  return resp.json();
 }
 
 /* ---- lists: categories + vendors ---- */
@@ -276,9 +328,10 @@ function deleteItem(key, name) {
 
 /* ---- view switch ---- */
 function show(view) {
-  ["homeView", "intakeView", "progressView", "resultView"].forEach((v) => {
+  ["homeView", "intakeView", "progressView", "resultView", "browseView"].forEach((v) => {
     $(v).classList.toggle("hidden", v !== view);
   });
+  if (view !== "browseView") $("actionBar").classList.add("hidden");
 }
 
 /* ---- chips ---- */
@@ -433,8 +486,7 @@ async function uploadBatch(batch, vendor, category, dateStr) {
   for (const f of batch) {
     payload.files.push({ name: f.name, mimeType: f.type || "image/jpeg", data: await fileToBase64(f) });
   }
-  const resp = await fetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) });
-  return resp.json();
+  return apiPost(payload);
 }
 async function doUpload() {
   if (isPlaceholder()) { $("cfgWarn").classList.remove("hidden"); return; }
@@ -502,12 +554,188 @@ function goHome() {
   if (!$("intakeView").classList.contains("hidden") && currentFiles.length > 0) {
     if (!confirm("Discard the selected photos and go home?")) return;
   }
+  selectedIds.clear();
   resetForMore();
+}
+
+/* ============================================================
+   BROWSE & SEND
+   ============================================================ */
+function browseStatus(text) {
+  let ov = $("statusOv");
+  if (text === null) { if (ov) ov.remove(); return; }
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.className = "statusov"; ov.id = "statusOv";
+    ov.innerHTML = '<div class="box" id="statusBox"></div>';
+    document.body.appendChild(ov);
+  }
+  $("statusBox").textContent = text;
+}
+
+async function openBrowse() {
+  show("browseView");
+  selectedIds.clear();
+  browseLevel = "dates";
+  $("browseTitle").textContent = "Browse photos";
+  $("browseBody").innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const res = await apiPost({ action: "summary", key: API_KEY });
+    browseData = (res && res.ok) ? res.dates : [];
+  } catch (e) { browseData = []; }
+  renderDates();
+}
+
+function rowEl(title, sub, onClick) {
+  const row = document.createElement("div");
+  row.className = "listrow";
+  row.innerHTML =
+    '<div class="rico"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>' +
+    '<div class="rtext"><div class="rtitle"></div><div class="rsub"></div></div>' +
+    '<div class="rchev">›</div>';
+  row.querySelector(".rtitle").textContent = title;
+  row.querySelector(".rsub").textContent = sub;
+  row.onclick = onClick;
+  return row;
+}
+
+function renderDates() {
+  browseLevel = "dates";
+  selectedIds.clear();
+  $("actionBar").classList.add("hidden");
+  $("browseTitle").textContent = "All photos by date";
+  const body = $("browseBody"); body.innerHTML = "";
+  if (!browseData.length) { body.innerHTML = '<div class="empty">No photos uploaded yet.</div>'; return; }
+  const tip = document.createElement("div");
+  tip.className = "browsetip"; tip.textContent = "Tap a date to open its categories.";
+  body.appendChild(tip);
+  browseData.forEach((d) => {
+    body.appendChild(rowEl(d.date, d.total + (d.total === 1 ? " photo" : " photos"), () => renderGroups(d)));
+  });
+}
+
+function renderGroups(d) {
+  browseLevel = "groups";
+  browseDate = d.date;
+  selectedIds.clear();
+  $("actionBar").classList.add("hidden");
+  $("browseTitle").textContent = d.date;
+  const body = $("browseBody"); body.innerHTML = "";
+  const tip = document.createElement("div");
+  tip.className = "browsetip"; tip.textContent = "Category / Vendor — tap to view photos.";
+  body.appendChild(tip);
+  (d.groups || []).forEach((g) => {
+    body.appendChild(rowEl(g.category + "  /  " + g.vendor, g.count + (g.count === 1 ? " photo" : " photos"),
+      () => loadPhotos(d.date, g.category, g.vendor)));
+  });
+}
+
+async function loadPhotos(date, category, vendor) {
+  browseLevel = "photos";
+  browseDate = date; browseCategory = category; browseVendor = vendor;
+  selectedIds.clear();
+  $("browseTitle").textContent = category + " / " + vendor;
+  $("browseBody").innerHTML = '<div class="empty">Loading photos…</div>';
+  try {
+    const res = await apiPost({ action: "list", key: API_KEY, date: date, category: category, vendor: vendor });
+    browsePhotos = (res && res.ok) ? res.files : [];
+  } catch (e) { browsePhotos = []; }
+  renderPhotos();
+}
+
+function renderPhotos() {
+  const body = $("browseBody"); body.innerHTML = "";
+  if (!browsePhotos.length) { body.innerHTML = '<div class="empty">No photos here.</div>'; $("actionBar").classList.add("hidden"); return; }
+  const tip = document.createElement("div");
+  tip.className = "browsetip"; tip.textContent = "Tap photos to select, then Share or Delete.";
+  body.appendChild(tip);
+  const grid = document.createElement("div");
+  grid.className = "pgrid";
+  browsePhotos.forEach((p) => {
+    const cell = document.createElement("div");
+    cell.className = "pcell" + (selectedIds.has(p.id) ? " sel" : "");
+    cell.innerHTML = '<img src="' + p.thumbUrl + '" alt="" loading="lazy"><div class="check">✓</div>';
+    cell.onclick = () => togglePhoto(p.id, cell);
+    grid.appendChild(cell);
+  });
+  body.appendChild(grid);
+  updateActionBar();
+}
+
+function togglePhoto(id, cell) {
+  if (selectedIds.has(id)) { selectedIds.delete(id); cell.classList.remove("sel"); }
+  else { selectedIds.add(id); cell.classList.add("sel"); }
+  updateActionBar();
+}
+
+function updateActionBar() {
+  const n = selectedIds.size;
+  const bar = $("actionBar");
+  bar.classList.toggle("hidden", n === 0 || browseLevel !== "photos");
+  $("shareSel").textContent = "Share (" + n + ")";
+  $("delSel").textContent = "Delete (" + n + ")";
+}
+
+function browseBack() {
+  if (browseLevel === "photos") renderGroups(findDate(browseDate));
+  else if (browseLevel === "groups") renderDates();
+  else goHome();
+}
+function findDate(date) {
+  for (const d of browseData) { if (d.date === date) return d; }
+  return { date: date, groups: [], total: 0 };
+}
+
+async function shareSelected() {
+  const ids = Array.from(selectedIds);
+  if (!ids.length) return;
+  browseStatus("Preparing " + ids.length + " photo" + (ids.length === 1 ? "" : "s") + "…");
+  const files = [];
+  for (const id of ids) {
+    try {
+      const r = await apiPost({ action: "getFile", key: API_KEY, id: id });
+      if (r && r.ok) {
+        const bin = atob(r.data);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        files.push(new File([bytes], r.name || "photo.jpg", { type: r.mimeType || "image/jpeg" }));
+      }
+    } catch (e) {}
+  }
+  browseStatus(null);
+  if (!files.length) { alert("Could not load the selected photos. Please try again."); return; }
+  if (navigator.canShare && navigator.canShare({ files: files })) {
+    try { await navigator.share({ files: files, title: "Mitushi Fashion" }); } catch (e) {}
+  } else {
+    files.forEach((f) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(f); a.download = f.name;
+      document.body.appendChild(a); a.click(); a.remove();
+    });
+  }
+}
+
+async function deleteSelected() {
+  const ids = Array.from(selectedIds);
+  if (!ids.length) return;
+  if (!confirm("Delete " + ids.length + " photo" + (ids.length === 1 ? "" : "s") + " from Drive? This can't be undone.")) return;
+  browseStatus("Deleting…");
+  for (const id of ids) {
+    try { await apiPost({ action: "delete", key: API_KEY, id: id }); } catch (e) {}
+  }
+  browsePhotos = browsePhotos.filter((p) => !selectedIds.has(p.id));
+  selectedIds.clear();
+  browseStatus(null);
+  renderPhotos();
 }
 
 /* ---- wire up ---- */
 $("homeBtn").onclick = goHome;
 $("homeBtn2").onclick = goHome;
+$("browseBtn").onclick = openBrowse;
+$("browseBack").onclick = browseBack;
+$("shareSel").onclick = shareSelected;
+$("delSel").onclick = deleteSelected;
 $("pickHome").onclick = openPicker;
 $("pickMore").onclick = openPicker;
 $("uploadBtn").onclick = doUpload;
