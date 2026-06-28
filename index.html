@@ -44,22 +44,27 @@
 
   .thumbs{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:14px; }
   .thumbs .t{ position:relative; aspect-ratio:1; border-radius:9px; overflow:hidden; background:var(--rose-soft); }
-  .thumbs .t img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .thumbs .more{
-    display:flex; align-items:center; justify-content:center; text-align:center;
-    aspect-ratio:1; border-radius:9px; background:var(--rose-soft); color:var(--rose-dark);
-    font-size:12px; font-weight:600; padding:4px;
+  .thumbs .t img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+  .thumbs .tx{
+    position:absolute; top:3px; right:3px; z-index:3;
+    width:22px; height:22px; border:none; border-radius:50%;
+    background:rgba(0,0,0,.55); color:#fff; font-size:16px; line-height:1;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; padding:0;
   }
 
-  .lbl{ font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.3px; text-transform:uppercase; margin-bottom:9px; }
+  .lbl{ font-size:12px; font-weight:600; color:var(--muted); letter-spacing:.3px; text-transform:uppercase; margin-bottom:10px; }
+  .emptyhint{ font-size:12.5px; color:var(--muted); margin:-2px 0 12px; }
 
   .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
   .chip{
+    display:inline-flex; align-items:center; gap:6px;
     border:1.5px solid var(--border); background:#fff; color:var(--ink);
-    border-radius:30px; padding:8px 15px; font-size:13.5px; font-weight:500;
-    cursor:pointer; font-family:inherit; transition:.12s;
+    border-radius:30px; padding:8px 11px 8px 15px; font-size:13.5px; font-weight:500;
+    cursor:pointer; transition:.12s;
   }
   .chip.active{ background:var(--rose); border-color:var(--rose); color:#fff; }
+  .chip .x{ font-size:17px; line-height:1; opacity:.4; padding:0 1px; }
+  .chip.active .x{ opacity:.85; }
 
   .addcat{ display:flex; gap:8px; }
   .addcat input{
@@ -72,7 +77,7 @@
     border-radius:11px; padding:0 16px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit;
   }
 
-  .daterow{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px; }
+  .daterow{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:16px; }
   .daterow label{ font-size:13px; color:var(--muted); font-weight:500; }
   .daterow input{
     border:1.5px solid var(--border); border-radius:11px; padding:9px 12px;
@@ -89,7 +94,7 @@
   .btn-primary:disabled{ background:#E8C2D1; box-shadow:none; cursor:not-allowed; }
   .btn-ghost{ background:#fff; color:var(--rose); border:1.5px solid var(--border); box-shadow:none; }
   .btn .uploadto{ display:block; font-size:11.5px; font-weight:400; opacity:.9; margin-top:3px; }
-  .btn-row{ margin-top:6px; }
+  .btn-row{ margin-top:14px; }
 
   .intro h2{ font-size:17px; font-weight:600; margin-bottom:6px; }
   .intro p{ font-size:13.5px; color:var(--muted); line-height:1.6; margin-bottom:14px; }
@@ -128,22 +133,22 @@
 <div class="wrap">
 
   <div id="cfgWarn" class="banner warn hidden">
-    <b>One-time setup left.</b> Open this file and paste your Apps Script <b>web app URL</b> and <b>API key</b> at the top (in the BACKEND_URL and API_KEY lines), then re-upload. Until then, uploads won't work.
+    <b>One-time setup left.</b> Open this file and paste your Apps Script <b>web app URL</b> and <b>API key</b> at the top (BACKEND_URL and API_KEY), then re-upload.
   </div>
 
-  <!-- HOME (opened directly, no shared photos) -->
+  <!-- HOME -->
   <section id="homeView" class="card intro">
     <h2>Add your stock photos</h2>
-    <p>Save kurti photos to Google Drive, sorted by date and category. Nothing stays on your phone.</p>
+    <p>Save kurti photos to Google Drive, sorted by vendor and category. Nothing stays on your phone.</p>
     <ul class="steps">
       <li><span class="n">1</span><span>In WhatsApp, select the photos and tap <b>Share</b>.</span></li>
       <li><span class="n">2</span><span>Choose <b>Mitushi Fashion</b> from the share menu.</span></li>
-      <li><span class="n">3</span><span>Pick a category and tap upload — done.</span></li>
+      <li><span class="n">3</span><span>Pick a category, then a vendor, and tap upload.</span></li>
     </ul>
     <button class="btn btn-ghost" id="pickHome">Add from gallery</button>
   </section>
 
-  <!-- INTAKE (photos loaded) -->
+  <!-- INTAKE -->
   <section id="intakeView" class="hidden">
     <div class="card">
       <div class="hero">
@@ -151,7 +156,7 @@
         <div class="cap" id="photoCap">photos ready to upload</div>
       </div>
       <div class="thumbs" id="thumbs"></div>
-      <button class="btn btn-ghost btn-row" id="pickMore" style="margin-top:14px;">Add more from gallery</button>
+      <button class="btn btn-ghost btn-row" id="pickMore">Add more from gallery</button>
     </div>
 
     <div class="card">
@@ -160,6 +165,16 @@
       <div class="addcat">
         <input id="catInput" type="text" placeholder="New category…" autocomplete="off">
         <button id="catAdd">Add</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="vendorCard">
+      <div class="lbl">Vendor</div>
+      <div class="chips" id="vendorChips"></div>
+      <div id="vendorEmpty" class="emptyhint">Add a vendor below to continue.</div>
+      <div class="addcat">
+        <input id="venInput" type="text" placeholder="New vendor…" autocomplete="off">
+        <button id="venAdd">Add</button>
       </div>
       <div class="daterow">
         <label for="dateInput">Photos from</label>
@@ -198,9 +213,7 @@
 
 <script>
 /* ============================================================
-   CONFIG — fill these two lines with your own values, then re-upload.
-   BACKEND_URL = the Apps Script web app URL ending in /exec
-   API_KEY     = the same secret you set in Code.gs
+   CONFIG — these are already filled with your values.
    ============================================================ */
 const BACKEND_URL = "https://script.google.com/macros/s/AKfycbyeDm3jErVNjGVN9cxvogtFjgU5UMrwt9ISBWXMJMAnC_YJlzHLQ03_qz4EvLBTDjgfIQ/exec";
 const API_KEY     = "mitushi-7752-xyz";
@@ -208,14 +221,16 @@ const API_KEY     = "mitushi-7752-xyz";
 const BASE = "/Mitushi-Kurtis-Photos/";
 const SHARE_CACHE = "mf-shared-photos";
 const BATCH_SIZE = 15;
-const MAX_THUMBS = 24;
-const DEFAULT_CATS = ["New Stock", "Cotton Kurtis", "Party Wear", "Anarkali", "Designer"];
+const CATS_KEY = "mf_cats";
+const VENDORS_KEY = "mf_vendors";
+const DEFAULT_CATS = ["Cord-Set", "Cotton Kurtis", "Party Wear", "Anarkali"];
 
-let currentFiles = [];      // File[]
+let currentFiles = [];
 let selectedCategory = "";
-let objectUrls = [];        // for cleanup
+let selectedVendor = "";
+let objectUrls = [];
+let thumbObserver = null;
 
-/* ---------- helpers ---------- */
 const $ = (id) => document.getElementById(id);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -224,7 +239,6 @@ function todayIST() {
     timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit"
   }).format(new Date());
 }
-
 function fileToBase64(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -234,85 +248,138 @@ function fileToBase64(file) {
   });
 }
 
-function getCats() {
-  try {
-    const raw = localStorage.getItem("mf_cats");
-    if (raw) return JSON.parse(raw);
-  } catch (e) {}
-  return DEFAULT_CATS.slice();
+/* ---- lists: categories + vendors ---- */
+function getList(key) {
+  try { const r = localStorage.getItem(key); if (r) return JSON.parse(r); } catch (e) {}
+  return key === CATS_KEY ? DEFAULT_CATS.slice() : [];
 }
-function saveCatUsed(cat) {
-  let cats = getCats().filter((c) => c.toLowerCase() !== cat.toLowerCase());
-  cats.unshift(cat);
-  cats = cats.slice(0, 12);
-  try { localStorage.setItem("mf_cats", JSON.stringify(cats)); } catch (e) {}
+function saveList(key, arr) { try { localStorage.setItem(key, JSON.stringify(arr)); } catch (e) {} }
+function addItem(key, name) {
+  name = (name || "").trim(); if (!name) return;
+  let arr = getList(key).filter((x) => x.toLowerCase() !== name.toLowerCase());
+  arr.unshift(name);
+  saveList(key, arr.slice(0, 50));
+}
+function deleteItem(key, name) {
+  saveList(key, getList(key).filter((x) => x !== name));
 }
 
-/* ---------- views ---------- */
+/* ---- view switch ---- */
 function show(view) {
   ["homeView", "intakeView", "progressView", "resultView"].forEach((v) => {
     $(v).classList.toggle("hidden", v !== view);
   });
 }
 
-function renderChips() {
-  const chips = $("chips");
-  chips.innerHTML = "";
-  getCats().forEach((cat) => {
-    const b = document.createElement("button");
-    b.className = "chip" + (cat === selectedCategory ? " active" : "");
-    b.textContent = cat;
-    b.onclick = () => { selectedCategory = cat; renderChips(); refreshUploadBtn(); };
-    chips.appendChild(b);
+/* ---- chips ---- */
+function buildChip(name, isActive, onSelect, onDelete) {
+  const chip = document.createElement("div");
+  chip.className = "chip" + (isActive ? " active" : "");
+  const lab = document.createElement("span"); lab.className = "lab"; lab.textContent = name;
+  const x = document.createElement("span"); x.className = "x"; x.innerHTML = "&times;"; x.title = "Remove";
+  x.onclick = (e) => { e.stopPropagation(); onDelete(); };
+  chip.onclick = onSelect;
+  chip.appendChild(lab); chip.appendChild(x);
+  return chip;
+}
+function renderCats() {
+  const box = $("chips"); box.innerHTML = "";
+  getList(CATS_KEY).forEach((name) => {
+    box.appendChild(buildChip(
+      name, name === selectedCategory,
+      () => { selectedCategory = name; updateVendorVisibility(); renderCats(); refreshUploadBtn(); },
+      () => { if (confirm('Remove category "' + name + '"?')) { if (selectedCategory === name) selectedCategory = ""; deleteItem(CATS_KEY, name); updateVendorVisibility(); renderCats(); refreshUploadBtn(); } }
+    ));
   });
 }
+function renderVendors() {
+  const box = $("vendorChips"); box.innerHTML = "";
+  const list = getList(VENDORS_KEY);
+  $("vendorEmpty").classList.toggle("hidden", list.length > 0);
+  list.forEach((name) => {
+    box.appendChild(buildChip(
+      name, name === selectedVendor,
+      () => { selectedVendor = name; renderVendors(); refreshUploadBtn(); },
+      () => { if (confirm('Remove vendor "' + name + '"?')) { if (selectedVendor === name) selectedVendor = ""; deleteItem(VENDORS_KEY, name); renderVendors(); refreshUploadBtn(); } }
+    ));
+  });
+}
+function updateVendorVisibility() {
+  $("vendorCard").classList.toggle("hidden", !selectedCategory);
+}
 
+/* ---- thumbnails (lazy load + per-photo remove) ---- */
 function clearObjectUrls() {
   objectUrls.forEach((u) => { try { URL.revokeObjectURL(u); } catch (e) {} });
   objectUrls = [];
 }
-
-function renderIntake() {
+function updateCount() {
   const n = currentFiles.length;
   $("photoCount").textContent = n;
   $("photoCap").textContent = (n === 1 ? "photo" : "photos") + " ready to upload";
-
+}
+function onThumbVisible(entries) {
+  entries.forEach((en) => {
+    if (en.isIntersecting) {
+      const t = en.target;
+      if (!t._loaded) {
+        t._loaded = true;
+        const url = URL.createObjectURL(t._file);
+        objectUrls.push(url);
+        const img = document.createElement("img");
+        img.src = url; img.alt = "";
+        t.insertBefore(img, t.firstChild);
+      }
+      if (thumbObserver) thumbObserver.unobserve(t);
+    }
+  });
+}
+function removeFile(tile, file) {
+  currentFiles = currentFiles.filter((f) => f !== file);
+  if (tile.parentNode) tile.parentNode.removeChild(tile);
+  updateCount();
+  refreshUploadBtn();
+  if (currentFiles.length === 0) resetForMore();
+}
+function renderIntake() {
+  if (thumbObserver) thumbObserver.disconnect();
   clearObjectUrls();
-  const grid = $("thumbs");
-  grid.innerHTML = "";
-  const showCount = Math.min(n, MAX_THUMBS);
-  for (let i = 0; i < showCount; i++) {
-    const url = URL.createObjectURL(currentFiles[i]);
-    objectUrls.push(url);
+  const grid = $("thumbs"); grid.innerHTML = "";
+  thumbObserver = new IntersectionObserver(onThumbVisible, { root: null, rootMargin: "250px" });
+  currentFiles.forEach((file) => {
     const t = document.createElement("div");
     t.className = "t";
-    t.innerHTML = '<img src="' + url + '" alt="">';
+    t._file = file;
+    const x = document.createElement("button");
+    x.className = "tx"; x.innerHTML = "&times;"; x.title = "Remove photo";
+    x.onclick = (e) => { e.stopPropagation(); removeFile(t, file); };
+    t.appendChild(x);
     grid.appendChild(t);
-  }
-  if (n > MAX_THUMBS) {
-    const more = document.createElement("div");
-    more.className = "more";
-    more.textContent = "+" + (n - MAX_THUMBS) + " more";
-    grid.appendChild(more);
-  }
-  renderChips();
-  refreshUploadBtn();
+    thumbObserver.observe(t);
+  });
+  updateCount();
+  renderCats();
+  renderVendors();
+  updateVendorVisibility();
   show("intakeView");
 }
 
 function refreshUploadBtn() {
-  const ready = currentFiles.length > 0 && selectedCategory && !isPlaceholder();
+  const ready = currentFiles.length > 0 && selectedCategory && selectedVendor && !isPlaceholder();
   $("uploadBtn").disabled = !ready;
-  $("uploadTo").textContent = (currentFiles.length && selectedCategory)
-    ? (selectedCategory + "  •  " + $("dateInput").value)
-    : (currentFiles.length ? "Pick a category first" : "");
+  let hint = "";
+  if (currentFiles.length) {
+    if (!selectedCategory) hint = "Pick a category";
+    else if (!selectedVendor) hint = "Pick a vendor";
+    else hint = selectedVendor + "  •  " + selectedCategory + "  •  " + $("dateInput").value;
+  }
+  $("uploadTo").textContent = hint;
 }
-
 function isPlaceholder() {
   return BACKEND_URL.indexOf("PASTE_") === 0 || API_KEY.indexOf("PASTE_") === 0;
 }
 
-/* ---------- shared photos from WhatsApp ---------- */
+/* ---- shared photos from WhatsApp ---- */
 async function loadSharedPhotos() {
   try {
     const cache = await caches.open(SHARE_CACHE);
@@ -330,9 +397,7 @@ async function loadSharedPhotos() {
     if (!files.length) return false;
     currentFiles = files;
     return true;
-  } catch (e) {
-    return false;
-  }
+  } catch (e) { return false; }
 }
 async function clearSharedCache() {
   try {
@@ -342,7 +407,7 @@ async function clearSharedCache() {
   } catch (e) {}
 }
 
-/* ---------- gallery picker ---------- */
+/* ---- gallery picker ---- */
 function openPicker() { $("fileInput").click(); }
 $("fileInput").addEventListener("change", (e) => {
   const picked = Array.from(e.target.files || []);
@@ -352,24 +417,22 @@ $("fileInput").addEventListener("change", (e) => {
   renderIntake();
 });
 
-/* ---------- upload ---------- */
-async function uploadBatch(batch, category, dateStr) {
-  const payload = { action: "upload", key: API_KEY, category: category, date: dateStr, files: [] };
+/* ---- upload ---- */
+async function uploadBatch(batch, vendor, category, dateStr) {
+  const payload = { action: "upload", key: API_KEY, vendor: vendor, category: category, date: dateStr, files: [] };
   for (const f of batch) {
     payload.files.push({ name: f.name, mimeType: f.type || "image/jpeg", data: await fileToBase64(f) });
   }
   const resp = await fetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) });
   return resp.json();
 }
-
 async function doUpload() {
   if (isPlaceholder()) { $("cfgWarn").classList.remove("hidden"); return; }
-  const category = selectedCategory;
+  const vendor = selectedVendor, category = selectedCategory;
   const dateStr = $("dateInput").value || todayIST();
   const all = currentFiles.slice();
   const total = all.length;
-  let done = 0, saved = 0, failed = 0;
-  let folderUrl = "";
+  let done = 0, saved = 0, failed = 0, folderUrl = "";
 
   show("progressView");
   setProgress(0, total, 0);
@@ -378,88 +441,75 @@ async function doUpload() {
     const batch = all.slice(i, i + BATCH_SIZE);
     let ok = false, res = null, attempt = 0;
     while (attempt < 3 && !ok) {
-      try {
-        res = await uploadBatch(batch, category, dateStr);
-        ok = res && res.ok;
-      } catch (e) { res = { ok: false, error: String(e) }; }
+      try { res = await uploadBatch(batch, vendor, category, dateStr); ok = res && res.ok; }
+      catch (e) { res = { ok: false, error: String(e) }; }
       if (!ok) { attempt++; await sleep(1500 * attempt); }
     }
-    if (ok) {
-      saved += (typeof res.savedCount === "number" ? res.savedCount : batch.length);
-      if (res.folderUrl) folderUrl = res.folderUrl;
-    } else {
-      failed += batch.length;
-    }
+    if (ok) { saved += (typeof res.savedCount === "number" ? res.savedCount : batch.length); if (res.folderUrl) folderUrl = res.folderUrl; }
+    else { failed += batch.length; }
     done += batch.length;
     setProgress(done, total, saved);
   }
 
-  saveCatUsed(category);
+  addItem(CATS_KEY, category);
+  addItem(VENDORS_KEY, vendor);
   await clearSharedCache();
-  showResult(saved, failed, total, category, dateStr, folderUrl);
+  showResult(saved, failed, total, vendor, category, dateStr, folderUrl);
 }
-
 function setProgress(done, total, saved) {
   const pct = total ? Math.round((done / total) * 100) : 0;
   $("pct").textContent = pct + "%";
   $("barFill").style.width = pct + "%";
   $("progStat").textContent = "Saved " + saved + " of " + total + " photos…";
 }
-
-function showResult(saved, failed, total, category, dateStr, folderUrl) {
+function showResult(saved, failed, total, vendor, category, dateStr, folderUrl) {
   const ico = $("resIco");
-  if (failed === 0) {
-    ico.className = "result-ico ok"; ico.textContent = "✓";
-    $("resTitle").textContent = "All uploaded";
-  } else {
-    ico.className = "result-ico part"; ico.textContent = "!";
-    $("resTitle").textContent = saved + " of " + total + " uploaded";
-  }
-  let msg = saved + " photo" + (saved === 1 ? "" : "s") + " saved to <b>" + escapeHtml(category) + "</b> (" + dateStr + ").";
+  if (failed === 0) { ico.className = "result-ico ok"; ico.textContent = "✓"; $("resTitle").textContent = "All uploaded"; }
+  else { ico.className = "result-ico part"; ico.textContent = "!"; $("resTitle").textContent = saved + " of " + total + " uploaded"; }
+  let msg = saved + " photo" + (saved === 1 ? "" : "s") + " saved to <b>" + escapeHtml(vendor) + " / " + escapeHtml(category) + "</b> (" + dateStr + ").";
   if (failed > 0) msg += "<br>" + failed + " failed — tap Upload more to retry those.";
   if (folderUrl) msg += '<br><a class="folder" href="' + folderUrl + '" target="_blank" rel="noopener">Open Drive folder</a>';
   $("resMsg").innerHTML = msg;
   show("resultView");
 }
-
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
-
 function resetForMore() {
+  if (thumbObserver) thumbObserver.disconnect();
   clearObjectUrls();
   currentFiles = [];
   selectedCategory = "";
+  selectedVendor = "";
+  $("vendorCard").classList.add("hidden");
   show("homeView");
 }
 
-/* ---------- wire up ---------- */
+/* ---- wire up ---- */
 $("pickHome").onclick = openPicker;
 $("pickMore").onclick = openPicker;
 $("uploadBtn").onclick = doUpload;
 $("moreBtn").onclick = resetForMore;
 $("dateInput").onchange = refreshUploadBtn;
 $("catAdd").onclick = () => {
-  const v = $("catInput").value.trim();
-  if (!v) return;
-  selectedCategory = v;
-  saveCatUsed(v);
-  $("catInput").value = "";
-  renderChips();
-  refreshUploadBtn();
+  const v = $("catInput").value.trim(); if (!v) return;
+  addItem(CATS_KEY, v); selectedCategory = v; $("catInput").value = "";
+  updateVendorVisibility(); renderCats(); refreshUploadBtn();
 };
 $("catInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("catAdd").click(); } });
+$("venAdd").onclick = () => {
+  const v = $("venInput").value.trim(); if (!v) return;
+  addItem(VENDORS_KEY, v); selectedVendor = v; $("venInput").value = "";
+  renderVendors(); refreshUploadBtn();
+};
+$("venInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("venAdd").click(); } });
 
-/* ---------- init ---------- */
+/* ---- init ---- */
 async function init() {
   $("dateInput").value = todayIST();
   if (isPlaceholder()) $("cfgWarn").classList.remove("hidden");
-
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register(BASE + "sw.js").catch(() => {});
-  }
-
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register(BASE + "sw.js").catch(() => {});
   const params = new URLSearchParams(location.search);
   if (params.get("share") === "1") {
     history.replaceState(null, "", BASE);
