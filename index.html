@@ -654,7 +654,7 @@ function renderPhotos() {
   browsePhotos.forEach((p) => {
     const cell = document.createElement("div");
     cell.className = "pcell" + (selectedIds.has(p.id) ? " sel" : "");
-    cell.innerHTML = '<img src="' + p.thumbUrl + '" alt="" loading="lazy"><div class="check">✓</div>';
+    cell.innerHTML = '<img src="' + p.thumbUrl + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'"><div class="check">✓</div>';
     cell.onclick = () => togglePhoto(p.id, cell);
     grid.appendChild(cell);
   });
@@ -686,24 +686,14 @@ function findDate(date) {
   return { date: date, groups: [], total: 0 };
 }
 
-async function shareSelected() {
-  const ids = Array.from(selectedIds);
-  if (!ids.length) return;
-  browseStatus("Preparing " + ids.length + " photo" + (ids.length === 1 ? "" : "s") + "…");
-  const files = [];
-  for (const id of ids) {
-    try {
-      const r = await apiPost({ action: "getFile", key: API_KEY, id: id });
-      if (r && r.ok) {
-        const bin = atob(r.data);
-        const bytes = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-        files.push(new File([bytes], r.name || "photo.jpg", { type: r.mimeType || "image/jpeg" }));
-      }
-    } catch (e) {}
-  }
-  browseStatus(null);
-  if (!files.length) { alert("Could not load the selected photos. Please try again."); return; }
+function b64ToFile(data, name, mime) {
+  const bin = atob(data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new File([bytes], name || "photo.jpg", { type: mime || "image/jpeg" });
+}
+
+async function doShareFiles(files) {
   if (navigator.canShare && navigator.canShare({ files: files })) {
     try { await navigator.share({ files: files, title: "Mitushi Fashion" }); } catch (e) {}
   } else {
@@ -713,6 +703,38 @@ async function shareSelected() {
       document.body.appendChild(a); a.click(); a.remove();
     });
   }
+}
+
+function showSendOverlay(files) {
+  let ov = $("statusOv");
+  if (ov) ov.remove();
+  ov = document.createElement("div");
+  ov.className = "statusov"; ov.id = "statusOv";
+  ov.innerHTML = '<div class="box">' +
+    '<div style="font-weight:600;margin-bottom:14px;">' + files.length + ' photo' + (files.length === 1 ? "" : "s") + ' ready to send</div>' +
+    '<button class="btn btn-primary" id="ovSend" style="margin:0 0 8px;">Send now</button>' +
+    '<button class="btn btn-ghost" id="ovCancel" style="margin:0;">Cancel</button>' +
+    '</div>';
+  document.body.appendChild(ov);
+  $("ovSend").onclick = async () => { ov.remove(); await doShareFiles(files); };
+  $("ovCancel").onclick = () => ov.remove();
+}
+
+async function shareSelected() {
+  const ids = Array.from(selectedIds);
+  if (!ids.length) return;
+  browseStatus("Preparing 0/" + ids.length + "…");
+  const files = [];
+  for (const id of ids) {
+    try {
+      const r = await apiPost({ action: "getFile", key: API_KEY, id: id });
+      if (r && r.ok) files.push(b64ToFile(r.data, r.name, r.mimeType));
+    } catch (e) {}
+    browseStatus("Preparing " + files.length + "/" + ids.length + "…");
+  }
+  browseStatus(null);
+  if (!files.length) { alert("Could not load the selected photos. Please reload and try again."); return; }
+  showSendOverlay(files);
 }
 
 async function deleteSelected() {
