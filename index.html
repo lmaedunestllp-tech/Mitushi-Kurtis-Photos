@@ -18,7 +18,7 @@
     --ink:#2B2024; --muted:#8A7E84; --bg:#FBF7F8; --card:#FFFFFF;
     --border:#F0E3E8; --success:#1B873F; --danger:#C62828;
   }
-  html,body{ background:var(--bg); color:var(--ink); font-family:'Poppins',system-ui,sans-serif; }
+  html,body{ background:var(--bg); color:var(--ink); font-family:'Poppins',system-ui,sans-serif; overscroll-behavior-y:contain; }
   body{ min-height:100vh; min-height:100dvh; }
   .topbar{
     position:sticky; top:0; z-index:10; background:var(--rose); color:#fff;
@@ -273,6 +273,8 @@ const SHARE_CACHE = "mf-shared-photos";
 const BATCH_SIZE = 6;
 const UPLOAD_CONCURRENCY = 4;
 const SHARE_CONCURRENCY = 4;
+const MAX_DIM = 1600;       // longest side after resize (raise this to keep near-original size)
+const JPEG_QUALITY = 0.82;  // JPEG quality 0.6–0.95
 const CATS_KEY = "mf_cats";
 const VENDORS_KEY = "mf_vendors";
 const DEFAULT_CATS = ["Cord-Set", "Cotton Kurtis", "Party Wear", "Anarkali"];
@@ -306,6 +308,24 @@ function fileToBase64(file) {
     r.onerror = () => rej(new Error("read failed"));
     r.readAsDataURL(file);
   });
+}
+async function compressImage(file) {
+  try {
+    if (!file.type || file.type.indexOf("image/") !== 0) return file;
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MAX_DIM / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale), h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = w; canvas.height = h;
+    canvas.getContext("2d").drawImage(bitmap, 0, 0, w, h);
+    if (bitmap.close) bitmap.close();
+    const blob = await new Promise((r) => canvas.toBlob(r, "image/jpeg", JPEG_QUALITY));
+    if (blob && blob.size < file.size) {
+      const name = file.name.replace(/\.(png|webp|heic|heif|jpeg|jpg)$/i, "") + ".jpg";
+      return new File([blob], name, { type: "image/jpeg" });
+    }
+    return file;
+  } catch (e) { return file; }
 }
 async function apiPost(payload) {
   const resp = await fetch(BACKEND_URL, { method: "POST", body: JSON.stringify(payload) });
@@ -501,6 +521,7 @@ async function runPool(items, limit, fn) {
 async function doUpload() {
   if (isPlaceholder()) { $("cfgWarn").classList.remove("hidden"); return; }
   isUploading = true;
+  acquireWakeLock();
   const vendor = selectedVendor, category = selectedCategory;
   const dateStr = $("dateInput").value || todayIST();
   const all = currentFiles.slice();
@@ -514,9 +535,10 @@ async function doUpload() {
   setProgress(0, total, 0);
 
   await runPool(batches, UPLOAD_CONCURRENCY, async (batch) => {
-    const payloadFiles = await Promise.all(batch.map(async (f) => ({
-      name: f.name, mimeType: f.type || "image/jpeg", data: await fileToBase64(f)
-    })));
+    const payloadFiles = await Promise.all(batch.map(async (f) => {
+      const cf = await compressImage(f);
+      return { name: cf.name, mimeType: cf.type || "image/jpeg", data: await fileToBase64(cf) };
+    }));
     let ok = false, res = null, attempt = 0;
     while (attempt < 3 && !ok) {
       try {
@@ -544,6 +566,7 @@ function setProgress(done, total, saved) {
 }
 function showResult(saved, failed, total, vendor, category, dateStr, folderUrl) {
   isUploading = false;
+  releaseWakeLock();
   const ico = $("resIco");
   if (failed === 0) { ico.className = "result-ico ok"; ico.textContent = "✓"; $("resTitle").textContent = "All uploaded"; }
   else { ico.className = "result-ico part"; ico.textContent = "!"; $("resTitle").textContent = saved + " of " + total + " uploaded"; }
@@ -795,6 +818,22 @@ $("venAdd").onclick = () => {
   renderVendors(); refreshUploadBtn();
 };
 $("venInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("venAdd").click(); } });
+window.addEventListener("beforeunload", (e) => { if (isUploading) { e.preventDefault(); e.returnValue = ""; } });
+
+/* ---- keep awake + warn on refresh during upload ---- */
+let wakeLock = null;
+async function acquireWakeLock() {
+  try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+}
+function releaseWakeLock() {
+  try { if (wakeLock) { wakeLock.release(); wakeLock = null; } } catch (e) {}
+}
+window.addEventListener("beforeunload", (e) => {
+  if (isUploading) { e.preventDefault(); e.returnValue = ""; }
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && isUploading && !wakeLock) acquireWakeLock();
+});
 
 /* ---- init ---- */
 async function init() {
