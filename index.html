@@ -270,7 +270,9 @@ const API_KEY     = "mitushi-7752-xyz";
 
 const BASE = "/Mitushi-Kurtis-Photos/";
 const SHARE_CACHE = "mf-shared-photos";
-const BATCH_SIZE = 15;
+const BATCH_SIZE = 6;
+const UPLOAD_CONCURRENCY = 4;
+const SHARE_CONCURRENCY = 4;
 const CATS_KEY = "mf_cats";
 const VENDORS_KEY = "mf_vendors";
 const DEFAULT_CATS = ["Cord-Set", "Cotton Kurtis", "Party Wear", "Anarkali"];
@@ -481,13 +483,21 @@ $("fileInput").addEventListener("change", (e) => {
 });
 
 /* ---- upload ---- */
-async function uploadBatch(batch, vendor, category, dateStr) {
-  const payload = { action: "upload", key: API_KEY, vendor: vendor, category: category, date: dateStr, files: [] };
-  for (const f of batch) {
-    payload.files.push({ name: f.name, mimeType: f.type || "image/jpeg", data: await fileToBase64(f) });
+async function runPool(items, limit, fn) {
+  let i = 0;
+  const n = Math.min(limit, items.length);
+  const workers = [];
+  for (let w = 0; w < n; w++) {
+    workers.push((async () => {
+      while (i < items.length) {
+        const idx = i++;
+        await fn(items[idx], idx);
+      }
+    })());
   }
-  return apiPost(payload);
+  await Promise.all(workers);
 }
+
 async function doUpload() {
   if (isPlaceholder()) { $("cfgWarn").classList.remove("hidden"); return; }
   isUploading = true;
@@ -497,22 +507,29 @@ async function doUpload() {
   const total = all.length;
   let done = 0, saved = 0, failed = 0, folderUrl = "";
 
+  const batches = [];
+  for (let i = 0; i < total; i += BATCH_SIZE) batches.push(all.slice(i, i + BATCH_SIZE));
+
   show("progressView");
   setProgress(0, total, 0);
 
-  for (let i = 0; i < total; i += BATCH_SIZE) {
-    const batch = all.slice(i, i + BATCH_SIZE);
+  await runPool(batches, UPLOAD_CONCURRENCY, async (batch) => {
+    const payloadFiles = await Promise.all(batch.map(async (f) => ({
+      name: f.name, mimeType: f.type || "image/jpeg", data: await fileToBase64(f)
+    })));
     let ok = false, res = null, attempt = 0;
     while (attempt < 3 && !ok) {
-      try { res = await uploadBatch(batch, vendor, category, dateStr); ok = res && res.ok; }
-      catch (e) { res = { ok: false, error: String(e) }; }
+      try {
+        res = await apiPost({ action: "upload", key: API_KEY, vendor: vendor, category: category, date: dateStr, files: payloadFiles });
+        ok = res && res.ok;
+      } catch (e) { res = { ok: false }; }
       if (!ok) { attempt++; await sleep(1500 * attempt); }
     }
     if (ok) { saved += (typeof res.savedCount === "number" ? res.savedCount : batch.length); if (res.folderUrl) folderUrl = res.folderUrl; }
     else { failed += batch.length; }
     done += batch.length;
     setProgress(done, total, saved);
-  }
+  });
 
   addItem(CATS_KEY, category);
   addItem(VENDORS_KEY, vendor);
@@ -723,15 +740,18 @@ function showSendOverlay(files) {
 async function shareSelected() {
   const ids = Array.from(selectedIds);
   if (!ids.length) return;
+  let fetched = 0;
   browseStatus("Preparing 0/" + ids.length + "…");
-  const files = [];
-  for (const id of ids) {
+  const slots = new Array(ids.length);
+  await runPool(ids, SHARE_CONCURRENCY, async (id, idx) => {
     try {
       const r = await apiPost({ action: "getFile", key: API_KEY, id: id });
-      if (r && r.ok) files.push(b64ToFile(r.data, r.name, r.mimeType));
+      if (r && r.ok) slots[idx] = b64ToFile(r.data, r.name, r.mimeType);
     } catch (e) {}
-    browseStatus("Preparing " + files.length + "/" + ids.length + "…");
-  }
+    fetched++;
+    browseStatus("Preparing " + fetched + "/" + ids.length + "…");
+  });
+  const files = slots.filter(Boolean);
   browseStatus(null);
   if (!files.length) { alert("Could not load the selected photos. Please reload and try again."); return; }
   showSendOverlay(files);
