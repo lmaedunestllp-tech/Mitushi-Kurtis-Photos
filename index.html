@@ -132,17 +132,32 @@
   .empty{ text-align:center; color:var(--muted); font-size:14px; padding:34px 10px; }
 
   .pgrid{ display:grid; grid-template-columns:repeat(3,1fr); gap:7px; padding-bottom:96px; }
-  .pcell{ position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; background:var(--rose-soft); cursor:pointer; }
+  .pcell{ position:relative; aspect-ratio:1; border-radius:10px; overflow:hidden; background:var(--rose-soft); cursor:pointer; touch-action:pan-y; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
   .pcell img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   .pcell .check{ position:absolute; top:5px; right:5px; width:24px; height:24px; border-radius:50%; background:rgba(255,255,255,.85); border:2px solid #fff; display:flex; align-items:center; justify-content:center; font-size:14px; color:transparent; }
   .pcell.sel{ outline:3px solid var(--rose); outline-offset:-3px; }
   .pcell.sel .check{ background:var(--rose); color:#fff; }
+
+  .selbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:-2px 0 12px; }
+  .selbar .selcount{ font-size:13px; font-weight:700; color:var(--ink); }
+  .selbar .selbtns{ display:flex; gap:8px; }
+  .selbar button{ font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:999px; border:1px solid var(--rose); background:#fff; color:var(--rose); cursor:pointer; }
+  .selbar button:active{ background:var(--rose-soft); }
+  .syncbtn{ width:100%; font-size:13px; font-weight:600; padding:11px; border-radius:12px; border:1px dashed var(--rose); background:#fff; color:var(--rose); cursor:pointer; margin-bottom:14px; }
+  .syncbtn:active{ background:var(--rose-soft); }
 
   .actionbar{ position:fixed; left:50%; transform:translateX(-50%); bottom:0; z-index:20; width:100%; max-width:520px; background:#fff; border-top:1px solid var(--border); padding:12px 16px; padding-bottom:calc(12px + env(safe-area-inset-bottom)); display:flex; gap:10px; }
   .actionbar .btn{ margin:0; }
 
   .statusov{ position:fixed; inset:0; z-index:30; background:rgba(43,32,36,.45); display:flex; align-items:center; justify-content:center; }
   .statusov .box{ background:#fff; border-radius:14px; padding:20px 26px; font-size:14px; font-weight:500; color:var(--ink); box-shadow:0 10px 30px rgba(0,0,0,.2); text-align:center; }
+
+  .lockscreen{ position:fixed; inset:0; z-index:100; background:var(--rose); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .lockbox{ text-align:center; color:#fff; max-width:320px; width:100%; }
+  .lockbox .lockicon{ width:64px; height:64px; border-radius:50%; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; margin:0 auto 18px; }
+  .lockbox .locktitle{ font-size:22px; font-weight:700; margin-bottom:4px; }
+  .lockbox .locksub{ font-size:13px; opacity:.85; margin-bottom:24px; }
+  .lockbox .btn{ background:#fff; color:var(--rose); box-shadow:0 6px 18px rgba(0,0,0,.18); }
 </style>
 </head>
 <body>
@@ -181,6 +196,7 @@
     </ul>
     <button class="btn btn-primary" id="browseBtn">Browse &amp; Send saved photos</button>
     <button class="btn btn-ghost" id="pickHome">Add from gallery</button>
+    <button class="btn btn-ghost" id="lockToggle">🔒 Enable app lock</button>
   </section>
 
   <!-- INTAKE -->
@@ -261,6 +277,18 @@
 
 <input id="fileInput" type="file" accept="image/*" multiple hidden>
 
+<!-- APP LOCK SCREEN -->
+<div id="lockScreen" class="lockscreen hidden">
+  <div class="lockbox">
+    <div class="lockicon">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+    </div>
+    <div class="locktitle">Mitushi Fashion</div>
+    <div class="locksub">Locked — verify to continue</div>
+    <button class="btn btn-primary" id="unlockBtn">Unlock with fingerprint</button>
+  </div>
+</div>
+
 <script>
 /* ============================================================
    CONFIG — already filled with your values.
@@ -273,6 +301,7 @@ const SHARE_CACHE = "mf-shared-photos";
 const BATCH_SIZE = 6;
 const UPLOAD_CONCURRENCY = 4;
 const SHARE_CONCURRENCY = 4;
+const SHARE_MAX = 30;
 const MAX_DIM = 1600;       // longest side after resize (raise this to keep near-original size)
 const JPEG_QUALITY = 0.82;  // JPEG quality 0.6–0.95
 const CATS_KEY = "mf_cats";
@@ -645,7 +674,17 @@ function renderDates() {
   $("actionBar").classList.add("hidden");
   $("browseTitle").textContent = "All photos by date";
   const body = $("browseBody"); body.innerHTML = "";
-  if (!browseData.length) { body.innerHTML = '<div class="empty">No photos uploaded yet.</div>'; return; }
+  const sync = document.createElement("button");
+  sync.className = "syncbtn"; sync.textContent = "🔄 Sync with Drive";
+  sync.onclick = resyncDrive;
+  body.appendChild(sync);
+  if (!browseData.length) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = "No photos found. If you just deleted from Drive, tap Sync above.";
+    body.appendChild(e);
+    return;
+  }
   const tip = document.createElement("div");
   tip.className = "browsetip"; tip.textContent = "Tap a date to open its categories.";
   body.appendChild(tip);
@@ -683,29 +722,92 @@ async function loadPhotos(date, category, vendor) {
   renderPhotos();
 }
 
+/* ---- swipe (drag) to select, like the phone gallery ---- */
+let dgDown = false, dgMoved = false, dgMode = false, dgStart = -1, dgX = 0, dgY = 0, dgSuppressClick = false;
+const dgSeen = new Set();
+function dgCellByIdx(idx) { return $("browseBody").querySelector('.pcell[data-idx="' + idx + '"]'); }
+function dgApply(idx, on) {
+  const p = browsePhotos[idx]; if (!p) return;
+  const cell = dgCellByIdx(idx);
+  if (on) { selectedIds.add(p.id); if (cell) cell.classList.add("sel"); }
+  else { selectedIds.delete(p.id); if (cell) cell.classList.remove("sel"); }
+}
+function gridPointerDown(e) {
+  const cell = e.target.closest(".pcell"); if (!cell) return;
+  dgDown = true; dgMoved = false; dgStart = +cell.dataset.idx; dgX = e.clientX; dgY = e.clientY; dgSeen.clear();
+}
+function gridPointerMove(e) {
+  if (!dgDown) return;
+  const dx = e.clientX - dgX, dy = e.clientY - dgY;
+  if (!dgMoved) {
+    if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+      dgMoved = true;
+      const p = browsePhotos[dgStart];
+      dgMode = !(p && selectedIds.has(p.id));
+      dgApply(dgStart, dgMode); dgSeen.add(dgStart);
+    } else { return; }
+  }
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const c = el && el.closest(".pcell");
+  if (c) { const idx = +c.dataset.idx; if (!dgSeen.has(idx)) { dgApply(idx, dgMode); dgSeen.add(idx); } }
+  e.preventDefault();
+}
+function gridPointerUp() {
+  if (!dgDown) return;
+  if (dgMoved) { dgSuppressClick = true; setTimeout(() => { dgSuppressClick = false; }, 60); }
+  dgDown = false; dgMoved = false; dgStart = -1;
+  updateActionBar(); updateSelbar();
+}
+window.addEventListener("pointerup", gridPointerUp);
+window.addEventListener("pointercancel", () => { dgDown = false; dgMoved = false; dgStart = -1; });
+
+function selectAllPhotos() {
+  browsePhotos.forEach((p) => selectedIds.add(p.id));
+  $("browseBody").querySelectorAll(".pcell").forEach((c) => c.classList.add("sel"));
+  updateActionBar(); updateSelbar();
+}
+function clearSelection() {
+  selectedIds.clear();
+  $("browseBody").querySelectorAll(".pcell").forEach((c) => c.classList.remove("sel"));
+  updateActionBar(); updateSelbar();
+}
+function updateSelbar() {
+  const c = $("selCount");
+  if (c) c.textContent = selectedIds.size + " of " + browsePhotos.length + " selected";
+}
+
 function renderPhotos() {
   const body = $("browseBody"); body.innerHTML = "";
   if (!browsePhotos.length) { body.innerHTML = '<div class="empty">No photos here.</div>'; $("actionBar").classList.add("hidden"); return; }
+  const selbar = document.createElement("div");
+  selbar.className = "selbar";
+  selbar.innerHTML = '<div class="selcount" id="selCount"></div><div class="selbtns"><button id="selAll">Select all</button><button id="selClear">Clear</button></div>';
+  body.appendChild(selbar);
   const tip = document.createElement("div");
-  tip.className = "browsetip"; tip.textContent = "Tap photos to select, then Share or Delete.";
+  tip.className = "browsetip"; tip.textContent = "Tap a photo, or swipe sideways across photos to select many. Then Share or Delete.";
   body.appendChild(tip);
   const grid = document.createElement("div");
   grid.className = "pgrid";
-  browsePhotos.forEach((p) => {
+  browsePhotos.forEach((p, i) => {
     const cell = document.createElement("div");
     cell.className = "pcell" + (selectedIds.has(p.id) ? " sel" : "");
-    cell.innerHTML = '<img src="' + p.thumbUrl + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'"><div class="check">✓</div>';
-    cell.onclick = () => togglePhoto(p.id, cell);
+    cell.dataset.idx = i;
+    cell.innerHTML = '<img src="' + p.thumbUrl + '" alt="" loading="lazy" referrerpolicy="no-referrer" draggable="false" onerror="this.style.display=\'none\'"><div class="check">✓</div>';
+    cell.onclick = () => { if (dgSuppressClick) return; togglePhoto(p.id, cell); };
     grid.appendChild(cell);
   });
+  grid.addEventListener("pointerdown", gridPointerDown);
+  grid.addEventListener("pointermove", gridPointerMove);
   body.appendChild(grid);
-  updateActionBar();
+  $("selAll").onclick = selectAllPhotos;
+  $("selClear").onclick = clearSelection;
+  updateActionBar(); updateSelbar();
 }
 
 function togglePhoto(id, cell) {
   if (selectedIds.has(id)) { selectedIds.delete(id); cell.classList.remove("sel"); }
   else { selectedIds.add(id); cell.classList.add("sel"); }
-  updateActionBar();
+  updateActionBar(); updateSelbar();
 }
 
 function updateActionBar() {
@@ -734,15 +836,16 @@ function b64ToFile(data, name, mime) {
 }
 
 async function doShareFiles(files) {
-  if (navigator.canShare && navigator.canShare({ files: files })) {
-    try { await navigator.share({ files: files, title: "Mitushi Fashion" }); } catch (e) {}
-  } else {
-    files.forEach((f) => {
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(f); a.download = f.name;
-      document.body.appendChild(a); a.click(); a.remove();
-    });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: files })) {
+      await navigator.share({ files: files, title: "Mitushi Fashion" });
+      return true;
+    }
+  } catch (e) {
+    if (e && e.name === "AbortError") return true; // user closed the share sheet — not a failure
+    return false;
   }
+  return false;
 }
 
 function showSendOverlay(files) {
@@ -756,13 +859,21 @@ function showSendOverlay(files) {
     '<button class="btn btn-ghost" id="ovCancel" style="margin:0;">Cancel</button>' +
     '</div>';
   document.body.appendChild(ov);
-  $("ovSend").onclick = async () => { ov.remove(); await doShareFiles(files); };
+  $("ovSend").onclick = async () => {
+    ov.remove();
+    const ok = await doShareFiles(files);
+    if (!ok) alert("Sharing didn't open. Please select fewer photos (try 10–20) and share again.");
+  };
   $("ovCancel").onclick = () => ov.remove();
 }
 
 async function shareSelected() {
   const ids = Array.from(selectedIds);
   if (!ids.length) return;
+  if (ids.length > SHARE_MAX) {
+    alert("WhatsApp can send about " + SHARE_MAX + " photos at a time. You've selected " + ids.length + ".\n\nPlease select " + SHARE_MAX + " or fewer, and send in batches.");
+    return;
+  }
   let fetched = 0;
   browseStatus("Preparing 0/" + ids.length + "…");
   const slots = new Array(ids.length);
@@ -784,14 +895,23 @@ async function deleteSelected() {
   const ids = Array.from(selectedIds);
   if (!ids.length) return;
   if (!confirm("Delete " + ids.length + " photo" + (ids.length === 1 ? "" : "s") + " from Drive? This can't be undone.")) return;
-  browseStatus("Deleting…");
-  for (const id of ids) {
-    try { await apiPost({ action: "delete", key: API_KEY, id: id }); } catch (e) {}
-  }
+  browseStatus("Deleting " + ids.length + "…");
+  try { await apiPost({ action: "deleteMany", key: API_KEY, ids: ids }); } catch (e) {}
   browsePhotos = browsePhotos.filter((p) => !selectedIds.has(p.id));
   selectedIds.clear();
   browseStatus(null);
   renderPhotos();
+}
+
+async function resyncDrive() {
+  if (!confirm("Sync the app with your Drive now?\n\nThis rebuilds the photo list to match what's actually in Drive (use this if counts look wrong after deleting directly in Drive).")) return;
+  browseStatus("Syncing with Drive… this may take a moment.");
+  try {
+    const res = await apiPost({ action: "resync", key: API_KEY });
+    if (res && res.ok) browseData = res.dates || [];
+  } catch (e) {}
+  browseStatus(null);
+  renderDates();
 }
 
 /* ---- wire up ---- */
@@ -818,7 +938,94 @@ $("venAdd").onclick = () => {
   renderVendors(); refreshUploadBtn();
 };
 $("venInput").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); $("venAdd").click(); } });
-window.addEventListener("beforeunload", (e) => { if (isUploading) { e.preventDefault(); e.returnValue = ""; } });
+
+/* ============================================================
+   APP LOCK — fingerprint / biometric (device built-in)
+   Frontend only; no server. Acts as a convenience gate.
+   ============================================================ */
+const LOCK_KEY = "mf_lock";
+const LOCK_RESUME_MS = 30000;
+let lockHiddenAt = 0;
+
+function randBytes(n) { const a = new Uint8Array(n); crypto.getRandomValues(a); return a; }
+function bufToB64url(buf) {
+  const b = new Uint8Array(buf); let s = "";
+  for (let i = 0; i < b.length; i++) s += String.fromCharCode(b[i]);
+  return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlToBuf(str) {
+  str = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (str.length % 4) str += "=";
+  const bin = atob(str); const b = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  return b.buffer;
+}
+async function platformAuthAvailable() {
+  try {
+    if (!window.PublicKeyCredential) return false;
+    return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  } catch (e) { return false; }
+}
+function isLockEnabled() { try { return !!localStorage.getItem(LOCK_KEY); } catch (e) { return false; } }
+
+function renderLockToggle() {
+  const btn = $("lockToggle");
+  if (!btn) return;
+  btn.textContent = isLockEnabled() ? "🔓 Disable app lock" : "🔒 Enable app lock";
+}
+
+async function enableLock() {
+  if (!(await platformAuthAvailable())) { alert("Fingerprint / biometric unlock is not available on this device."); return; }
+  try {
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge: randBytes(32),
+        rp: { name: "Mitushi Fashion", id: location.hostname },
+        user: { id: randBytes(16), name: "mitushi", displayName: "Mitushi Fashion" },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+        timeout: 60000
+      }
+    });
+    if (cred && cred.rawId) {
+      localStorage.setItem(LOCK_KEY, bufToB64url(cred.rawId));
+      renderLockToggle();
+      alert("App lock enabled. Your fingerprint will be needed to open the app.");
+    }
+  } catch (e) { alert("Could not enable app lock. Please try again."); }
+}
+function disableLock() {
+  if (!confirm("Turn off app lock?")) return;
+  try { localStorage.removeItem(LOCK_KEY); } catch (e) {}
+  renderLockToggle();
+}
+function toggleLock() { if (isLockEnabled()) disableLock(); else enableLock(); }
+
+function showLock() { $("lockScreen").classList.remove("hidden"); }
+function hideLock() { $("lockScreen").classList.add("hidden"); }
+
+async function unlockApp() {
+  let credId = null;
+  try { credId = localStorage.getItem(LOCK_KEY); } catch (e) {}
+  if (!credId) { hideLock(); return; }
+  const btn = $("unlockBtn");
+  if (btn) { btn.textContent = "Verifying…"; btn.disabled = true; }
+  try {
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge: randBytes(32),
+        allowCredentials: [{ type: "public-key", id: b64urlToBuf(credId), transports: ["internal"] }],
+        userVerification: "required",
+        timeout: 60000
+      }
+    });
+    if (assertion) { hideLock(); lockHiddenAt = 0; }
+  } catch (e) { /* failed or cancelled — stay locked */ }
+  if (btn) { btn.textContent = "Unlock with fingerprint"; btn.disabled = false; }
+}
+
+$("lockToggle").onclick = toggleLock;
+$("unlockBtn").onclick = unlockApp;
 
 /* ---- keep awake + warn on refresh during upload ---- */
 let wakeLock = null;
@@ -832,13 +1039,17 @@ window.addEventListener("beforeunload", (e) => {
   if (isUploading) { e.preventDefault(); e.returnValue = ""; }
 });
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && isUploading && !wakeLock) acquireWakeLock();
+  if (document.visibilityState === "hidden") { lockHiddenAt = Date.now(); return; }
+  if (isUploading && !wakeLock) acquireWakeLock();
+  if (!isUploading && isLockEnabled() && lockHiddenAt && (Date.now() - lockHiddenAt > LOCK_RESUME_MS)) showLock();
 });
 
 /* ---- init ---- */
 async function init() {
   $("dateInput").value = todayIST();
   if (isPlaceholder()) $("cfgWarn").classList.remove("hidden");
+  renderLockToggle();
+  if (isLockEnabled()) showLock();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register(BASE + "sw.js").catch(() => {});
   const params = new URLSearchParams(location.search);
   if (params.get("share") === "1") {
